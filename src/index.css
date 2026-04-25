@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --color-triton-gold: #C8A84E;
+  --color-triton-gold-light: #E8D48B;
+  --color-triton-gold-dark: #9B7B2C;
+  --color-triton-black: #0A0A0A;
+  --color-triton-dark: #111111;
+  --color-triton-card: #1A1A1A;
+  --color-triton-card-hover: #222222;
+  --color-triton-border: #2A2A2A;
+  --color-triton-text: #F5F5F5;
+  --color-triton-text-muted: #888888;
+  --color-triton-red: #E74C3C;
+  --color-triton-green: #2ECC71;
+  --color-triton-blue: #3498DB;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #0A0A0A;
+  color: #F5F5F5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #111;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 5px rgba(200,168,78,0.3); }
+  50% { box-shadow: 0 0 20px rgba(200,168,78,0.6); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+.gold-shimmer {
+  background: linear-gradient(90deg, #C8A84E, #E8D48B, #C8A84E);
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
