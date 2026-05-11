@@ -1,13 +1,22 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { PLAYERS, TOURNAMENTS, INITIAL_VIDEOS } from './data/database';
 import type { Player, Video, Tournament } from './data/database';
 import { useAppStore } from './store/useStore';
+import {
+  listVideos, getVideoStats, addVideo as apiAddVideo,
+  saveVideo as apiSaveVideo, unsaveVideo as apiUnsaveVideo,
+  listMySavedVideos,
+} from './api/videos';
+import type { VideoItem as ApiVideoItem } from './api/videos';
+import { useAuthStore } from './store/useAuthStore';
+import PaywallModal from './components/PaywallModal';
 import {
   Search, Trophy, Play, Star, X, ChevronRight, ArrowLeft, Globe,
   BookmarkPlus, Trash2, ExternalLink, TrendingUp,
   Users, DollarSign, Award, Video as VideoIcon, Menu, Crown,
   Calendar, MapPin, Zap, ChevronDown, Medal, User
 } from 'lucide-react';
+import { I18nProvider, useTranslation } from './i18n/context';
 
 // =================== Icons ===================
 function PokerCardIcon({ className = "w-6 h-6" }: { className?: string }) {
@@ -21,6 +30,7 @@ function PokerCardIcon({ className = "w-6 h-6" }: { className?: string }) {
 
 // =================== Hero Section ===================
 function HeroSection() {
+  const { t } = useTranslation();
   return (
     <div className="relative overflow-hidden">
       {/* Background Image */}
@@ -45,7 +55,7 @@ function HeroSection() {
             <span className="gold-shimmer">TRITON POKER</span>
           </h1>
           <p className="text-triton-text-muted text-lg md:text-xl max-w-3xl mx-auto leading-relaxed">
-            全球最高规格的超高额扑克系列赛事 · 由 Paul Phua 与 Richard Yong 于 2016 年创立
+            {t('hero.subtitle')}
           </p>
         </div>
       </div>
@@ -55,11 +65,12 @@ function HeroSection() {
 
 // =================== Stats Bar ===================
 function StatsBar() {
+  const { t } = useTranslation();
   const stats = [
-    { icon: Trophy, label: '赛事站次', value: '20+' },
-    { icon: Users, label: '参赛牌手', value: '1000+' },
-    { icon: DollarSign, label: '累计奖金池', value: '$1B+' },
-    { icon: Award, label: '年度赛事', value: '2016-至今' },
+    { icon: Trophy, label: t('stats.events'), value: '20+' },
+    { icon: Users, label: t('stats.players'), value: '1000+' },
+    { icon: DollarSign, label: t('stats.prizePool'), value: '$1B+' },
+    { icon: Award, label: t('stats.yearly'), value: '2016-至今' },
   ];
   return (
     <div className="border-y border-triton-border bg-triton-card/50 backdrop-blur-sm">
@@ -82,25 +93,28 @@ function StatsBar() {
 
 // =================== Player Card ===================
 function PlayerCard({ player, onClick }: { player: Player; onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       onClick={onClick}
       className="group bg-triton-card border border-triton-border rounded-xl overflow-hidden cursor-pointer hover:border-triton-gold/40 transition-all duration-300 animate-fadeIn"
     >
-      <div className="relative h-32 bg-gradient-to-br from-triton-gold/10 to-triton-dark overflow-hidden">
+      <div className="relative h-32 bg-gradient-to-br from-triton-gold/10 to-triton-dark">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(200,168,78,0.15),transparent)]" />
         {player.titles >= 5 && (
           <div className="absolute top-3 right-3 px-2 py-0.5 bg-triton-gold text-triton-black text-xs font-bold rounded-full flex items-center gap-1">
-            <Trophy className="w-3 h-3" /> {player.titles}冠
+            <Trophy className="w-3 h-3" /> {t('player.titles', { n: player.titles })}
           </div>
         )}
+      </div>
+      <div className="relative -mt-10 z-10">
         <img
           src={player.image}
           alt={player.name}
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-20 h-20 rounded-full border-4 border-triton-card object-cover group-hover:scale-110 transition-transform duration-300"
+          className="mx-auto w-20 h-20 rounded-full border-4 border-triton-card object-cover shadow-lg group-hover:scale-110 transition-transform duration-300"
         />
       </div>
-      <div className="pt-12 pb-5 px-5 text-center">
+      <div className="pt-2 pb-5 px-5 text-center">
         <h3 className="text-lg font-bold text-triton-text group-hover:text-triton-gold transition-colors">{player.name}</h3>
         <p className="text-triton-text-muted text-sm mt-1">{player.flag} {player.country}</p>
         {player.nickname && (
@@ -109,17 +123,17 @@ function PlayerCard({ player, onClick }: { player: Player; onClick: () => void }
         <div className="flex justify-center gap-4 mt-4 text-xs">
           <div className="text-center">
             <div className="text-triton-gold font-bold text-lg">{player.titles}</div>
-            <div className="text-triton-text-muted">冠军</div>
+            <div className="text-triton-text-muted">{t('player.champion')}</div>
           </div>
           <div className="w-px bg-triton-border" />
           <div className="text-center">
             <div className="text-triton-text font-bold text-lg">{player.cashes}</div>
-            <div className="text-triton-text-muted">钱圈</div>
+            <div className="text-triton-text-muted">{t('player.cashes')}</div>
           </div>
           <div className="w-px bg-triton-border" />
           <div className="text-center">
             <div className="text-triton-green font-bold text-lg">{player.totalEarnings}</div>
-            <div className="text-triton-text-muted">总奖金</div>
+            <div className="text-triton-text-muted">{t('player.totalEarnings')}</div>
           </div>
         </div>
       </div>
@@ -129,6 +143,7 @@ function PlayerCard({ player, onClick }: { player: Player; onClick: () => void }
 
 // =================== Player Detail ===================
 function PlayerDetail({ player, onBack, onSearchVideos }: { player: Player; onBack: () => void; onSearchVideos: (q: string) => void }) {
+  const { t } = useTranslation();
   const sortedResults = [...player.tritonResults].sort((a, b) => b.year - a.year || a.buyIn.localeCompare(b.buyIn));
   const totalPrize = player.tritonResults.reduce((sum, r) => {
     const num = parseFloat(r.prize.replace(/[^0-9.]/g, ''));
@@ -142,14 +157,14 @@ function PlayerDetail({ player, onBack, onSearchVideos }: { player: Player; onBa
         className="flex items-center gap-2 text-triton-text-muted hover:text-triton-gold transition-colors mb-8 group"
       >
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-        <span>返回</span>
+        <span>{t('player.back')}</span>
       </button>
 
       {/* Header */}
       <div className="relative bg-triton-card border border-triton-border rounded-2xl overflow-hidden mb-8">
         <div className="absolute inset-0 bg-gradient-to-r from-triton-gold/5 via-transparent to-triton-gold/5" />
-        <div className="relative p-8 flex flex-col md:flex-row items-center md:items-start gap-6">
-          <div className="relative">
+        <div className="relative p-8 flex flex-col md:flex-row items-center md:items-center gap-6">
+          <div className="relative flex-shrink-0">
             <div className="w-28 h-28 rounded-full p-1 bg-gradient-to-br from-triton-gold to-triton-gold-dark">
               <img src={player.image} alt={player.name} className="w-full h-full rounded-full object-cover border-2 border-triton-card" />
             </div>
@@ -159,7 +174,7 @@ function PlayerDetail({ player, onBack, onSearchVideos }: { player: Player; onBa
               </div>
             )}
           </div>
-          <div className="flex-1 text-center md:text-left">
+          <div className="flex-1 text-center md:text-left md:-mt-2">
             <div className="flex items-center justify-center md:justify-start gap-3">
               <h1 className="text-3xl font-bold text-triton-text">{player.name}</h1>
               <span className="text-2xl">{player.flag}</span>
@@ -176,9 +191,9 @@ function PlayerDetail({ player, onBack, onSearchVideos }: { player: Player; onBa
           </div>
           <div className="grid grid-cols-3 gap-4 min-w-[280px]">
             {[
-              { label: '总奖金', value: player.totalEarnings, color: 'text-triton-green' },
-              { label: '冠军数', value: `${player.titles}`, color: 'text-triton-gold' },
-              { label: '最大奖金', value: player.bestCash, color: 'text-triton-blue' },
+              { label: t('player.totalEarnings'), value: player.totalEarnings, color: 'text-triton-green' },
+              { label: t('player.champion'), value: `${player.titles}`, color: 'text-triton-gold' },
+              { label: t('player.bestCash'), value: player.bestCash, color: 'text-triton-blue' },
             ].map(({ label, value, color }) => (
               <div key={label} className="text-center p-3 bg-triton-black/30 rounded-lg">
                 <div className={`text-lg font-bold ${color}`}>{value}</div>
@@ -196,7 +211,7 @@ function PlayerDetail({ player, onBack, onSearchVideos }: { player: Player; onBa
           className="flex items-center gap-2 px-4 py-2.5 bg-triton-card border border-triton-border rounded-lg text-triton-text-muted hover:text-triton-gold hover:border-triton-gold/30 transition-all"
         >
           <VideoIcon className="w-4 h-4" />
-          搜索比赛视频
+          {t('player.searchVideos')}
         </button>
         {player.otherSeries?.map((s) => (
           <span key={s} className="px-3 py-2 text-xs bg-triton-card border border-triton-border rounded-lg text-triton-text-muted">
@@ -208,22 +223,22 @@ function PlayerDetail({ player, onBack, onSearchVideos }: { player: Player; onBa
       {/* Results Table */}
       <div className="bg-triton-card border border-triton-border rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-triton-border flex items-center justify-between">
-          <h2 className="text-lg font-bold text-triton-text">Triton 赛事成绩</h2>
+          <h2 className="text-lg font-bold text-triton-text">{t('player.tritonResults')}</h2>
           <span className="text-sm text-triton-text-muted">
-            Triton 总奖金: <span className="text-triton-green font-bold">${totalPrize.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            {t('player.tritonTotal')}: <span className="text-triton-green font-bold">${totalPrize.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
           </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="text-xs text-triton-text-muted border-b border-triton-border">
-                <th className="text-left px-6 py-3 font-medium">年份</th>
-                <th className="text-left px-6 py-3 font-medium">地点</th>
-                <th className="text-left px-6 py-3 font-medium">赛事</th>
-                <th className="text-right px-6 py-3 font-medium">买入</th>
-                <th className="text-right px-6 py-3 font-medium">奖金</th>
-                <th className="text-center px-6 py-3 font-medium">名次</th>
-                <th className="text-right px-6 py-3 font-medium">参赛人数</th>
+                <th className="text-left px-6 py-3 font-medium">{t('player.year')}</th>
+                <th className="text-left px-6 py-3 font-medium">{t('player.location')}</th>
+                <th className="text-left px-6 py-3 font-medium">{t('player.event')}</th>
+                <th className="text-right px-6 py-3 font-medium">{t('player.buyIn')}</th>
+                <th className="text-right px-6 py-3 font-medium">{t('player.prize')}</th>
+                <th className="text-center px-6 py-3 font-medium">{t('player.placing')}</th>
+                <th className="text-right px-6 py-3 font-medium">{t('player.entries')}</th>
               </tr>
             </thead>
             <tbody>
@@ -264,6 +279,7 @@ function VideoCard({ video, onSave, onRemove, isLibrary = false }: {
   onRemove?: (id: string) => void;
   isLibrary?: boolean;
 }) {
+  const { t } = useTranslation();
   const [isPlaying, setIsPlaying] = useState(false);
   const platformColors: Record<string, string> = {
     youtube: 'bg-red-600',
@@ -351,7 +367,7 @@ function VideoCard({ video, onSave, onRemove, isLibrary = false }: {
               <button
                 onClick={() => onSave(video)}
                 className="p-1.5 hover:bg-triton-gold/10 rounded transition-colors"
-                title="添加到视频库"
+                title={t('video.addToLibraryShort')}
               >
                 <BookmarkPlus className="w-4 h-4 text-triton-text-muted hover:text-triton-gold" />
               </button>
@@ -361,7 +377,7 @@ function VideoCard({ video, onSave, onRemove, isLibrary = false }: {
               target="_blank"
               rel="noopener noreferrer"
               className="p-1.5 hover:bg-triton-gold/10 rounded transition-colors"
-              title="在 YouTube 打开"
+              title={t('video.openOnYoutube')}
             >
               <ExternalLink className="w-4 h-4 text-triton-text-muted hover:text-triton-gold" />
             </a>
@@ -369,7 +385,7 @@ function VideoCard({ video, onSave, onRemove, isLibrary = false }: {
               <button
                 onClick={() => onRemove(video.id)}
                 className="p-1.5 hover:bg-red-500/10 rounded transition-colors"
-                title="从视频库移除"
+                title={t('video.removeFromLibrary')}
               >
                 <Trash2 className="w-4 h-4 text-triton-text-muted hover:text-triton-red" />
               </button>
@@ -383,6 +399,7 @@ function VideoCard({ video, onSave, onRemove, isLibrary = false }: {
 
 // =================== Tournament Card ===================
 function TournamentCard({ tournament, onClick }: { tournament: typeof TOURNAMENTS[0]; onClick?: () => void }) {
+  const { t } = useTranslation();
   const isUpcoming = new Date(tournament.startDate) > new Date();
   return (
     <div
@@ -395,7 +412,7 @@ function TournamentCard({ tournament, onClick }: { tournament: typeof TOURNAMENT
         <div className="absolute top-3 left-3">
           <span className="px-2 py-1 bg-triton-gold/90 text-triton-black text-xs font-bold rounded">{tournament.year}</span>
           {isUpcoming && (
-            <span className="ml-2 px-2 py-1 bg-triton-green/90 text-triton-black text-xs font-bold rounded animate-pulse">即将开赛</span>
+            <span className="ml-2 px-2 py-1 bg-triton-green/90 text-triton-black text-xs font-bold rounded animate-pulse">{t('tournament.upcoming')}</span>
           )}
         </div>
         {onClick && (
@@ -421,7 +438,7 @@ function TournamentCard({ tournament, onClick }: { tournament: typeof TOURNAMENT
           </div>
           <div className="flex items-center gap-1 text-triton-text-muted">
             <Users className="w-3.5 h-3.5" />
-            <span>{tournament.events} 场赛事</span>
+            <span>{tournament.events} {t('tournament.events')}</span>
           </div>
         </div>
         <div className="mt-3 px-2 py-1.5 bg-triton-black/30 rounded text-xs text-triton-text-muted">
@@ -438,6 +455,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
   onBack: () => void;
   onSelectPlayer: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
   const isUpcoming = new Date(tournament.startDate) > new Date();
   const completedEvents = tournament.eventList?.filter(e => e.status === 'completed') || [];
@@ -487,7 +505,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
         className="flex items-center gap-2 text-triton-text-muted hover:text-triton-gold transition-colors mb-8 group"
       >
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-        <span>返回</span>
+        <span>{t('player.back')}</span>
       </button>
 
       {/* Hero Banner */}
@@ -503,11 +521,11 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
             <span className="px-3 py-1 bg-triton-gold/90 text-triton-black text-sm font-bold rounded">{tournament.year}</span>
             {isUpcoming ? (
               <span className="px-3 py-1 bg-triton-green/90 text-triton-black text-sm font-bold rounded animate-pulse flex items-center gap-1">
-                <Zap className="w-3 h-3" /> 即将开赛
+                <Zap className="w-3 h-3" /> {t('tournament.upcoming')}
               </span>
             ) : (
               <span className="px-3 py-1 bg-triton-blue/80 text-white text-sm font-bold rounded flex items-center gap-1">
-                <Trophy className="w-3 h-3" /> 已结束
+                <Trophy className="w-3 h-3" /> {t('tournament.ended')}
               </span>
             )}
           </div>
@@ -519,10 +537,10 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
       {/* Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
-          { icon: Calendar, label: '日期', value: `${tournament.startDate} ~ ${tournament.endDate}` },
-          { icon: MapPin, label: '地点', value: tournament.location },
-          { icon: DollarSign, label: '总奖金池', value: tournament.totalPrizePool, color: 'text-triton-green' },
-          { icon: Trophy, label: '总冠军', value: tournament.winner, color: 'text-triton-gold' },
+          { icon: Calendar, label: t('tournament.date'), value: `${tournament.startDate} ~ ${tournament.endDate}` },
+          { icon: MapPin, label: t('tournament.location'), value: tournament.location },
+          { icon: DollarSign, label: t('tournament.totalPrizePool'), value: tournament.totalPrizePool, color: 'text-triton-green' },
+          { icon: Trophy, label: t('tournament.champion'), value: tournament.winner, color: 'text-triton-gold' },
         ].map(({ icon: Icon, label, value, color }) => (
           <div key={label} className="bg-triton-card border border-triton-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -539,7 +557,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
         <div className="bg-gradient-to-r from-triton-gold/5 via-triton-card to-triton-gold/5 border border-triton-gold/20 rounded-xl p-5 mb-8">
           <div className="flex items-center gap-2 mb-2">
             <Zap className="w-4 h-4 text-triton-gold" />
-            <h3 className="text-sm font-bold text-triton-gold">赛事亮点</h3>
+            <h3 className="text-sm font-bold text-triton-gold">{t('tournament.highlights')}</h3>
           </div>
           <p className="text-triton-text-muted text-sm leading-relaxed">{tournament.highlights}</p>
         </div>
@@ -567,7 +585,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
           <div className="flex items-center gap-2 mb-6">
             <Trophy className="w-5 h-5 text-triton-gold" />
             <h2 className="text-xl font-bold text-triton-text">
-              赛事列表
+              {t('tournament.eventList')}
             </h2>
             <span className="text-sm text-triton-text-muted">({tournament.eventList.length} 场)</span>
           </div>
@@ -577,7 +595,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-triton-green mb-3 flex items-center gap-2">
                 <div className="w-2 h-2 bg-triton-green rounded-full" />
-                已完赛 ({completedEvents.length})
+                {t('tournament.completed')} ({completedEvents.length})
               </h3>
               <div className="space-y-3">
                 {completedEvents.map(event => (
@@ -593,7 +611,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
                         </div>
                         <div className="flex items-center gap-3 mt-1.5 text-xs text-triton-text-muted">
                           <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> {event.buyIn}</span>
-                          <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {event.entries} 人</span>
+                          <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {event.entries} {t('tournament.entriesUnit')}</span>
                           <span className="text-triton-green font-semibold">{event.prizePool}</span>
                           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {event.date}</span>
                         </div>
@@ -613,10 +631,10 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
                           <table className="w-full">
                             <thead>
                               <tr className="text-xs text-triton-text-muted border-b border-triton-border/50">
-                                <th className="text-left px-4 py-2.5 font-medium w-16">名次</th>
-                                <th className="text-left px-4 py-2.5 font-medium">选手</th>
-                                <th className="text-center px-4 py-2.5 font-medium w-20">GPI 排名</th>
-                                <th className="text-right px-4 py-2.5 font-medium">奖金</th>
+                                <th className="text-left px-4 py-2.5 font-medium w-16">{t('tournament.placing')}</th>
+                                <th className="text-left px-4 py-2.5 font-medium">{t('tournament.player')}</th>
+                                <th className="text-center px-4 py-2.5 font-medium w-20">{t('tournament.gpiRanking')}</th>
+                                <th className="text-right px-4 py-2.5 font-medium">{t('tournament.prize')}</th>
                                 {event.results[0]?.playerId && <th className="px-4 py-2.5 w-16"></th>}
                               </tr>
                             </thead>
@@ -655,7 +673,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
                                           onClick={(e) => { e.stopPropagation(); onSelectPlayer(r.playerId!); }}
                                           className="text-xs text-triton-gold hover:underline flex items-center gap-1"
                                         >
-                                          <User className="w-3 h-3" /> 详情
+                                          <User className="w-3 h-3" /> {t('tournament.detail')}
                                         </button>
                                       )}
                                     </td>
@@ -678,7 +696,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
             <div>
               <h3 className="text-sm font-semibold text-triton-gold mb-3 flex items-center gap-2">
                 <div className="w-2 h-2 bg-triton-gold rounded-full animate-pulse" />
-                即将开赛 ({upcomingEvents.length})
+                {t('tournament.upcoming')} ({upcomingEvents.length})
               </h3>
               <div className="space-y-2">
                 {upcomingEvents.map(event => (
@@ -693,7 +711,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {event.date}</span>
                       </div>
                     </div>
-                    <span className="px-2 py-1 bg-triton-gold/10 text-triton-gold text-xs font-bold rounded animate-pulse">待开赛</span>
+                    <span className="px-2 py-1 bg-triton-gold/10 text-triton-gold text-xs font-bold rounded animate-pulse">{t('tournament.pending')}</span>
                   </div>
                 ))}
               </div>
@@ -708,19 +726,19 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
           <div className="px-6 py-4 border-b border-triton-border flex items-center justify-between">
             <h2 className="text-lg font-bold text-triton-text flex items-center gap-2">
               <Users className="w-5 h-5 text-triton-gold" />
-              参赛选手榜
+              {t('tournament.leaderboard')}
             </h2>
-            <span className="text-sm text-triton-text-muted">共 {allPlayers.length} 位选手</span>
+            <span className="text-sm text-triton-text-muted">{t('tournament.totalPlayers', { n: allPlayers.length })}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-xs text-triton-text-muted border-b border-triton-border">
                   <th className="text-left px-6 py-3 font-medium w-16">#</th>
-                  <th className="text-left px-6 py-3 font-medium">选手</th>
-                  <th className="text-center px-6 py-3 font-medium">GPI 排名</th>
-                  <th className="text-center px-6 py-3 font-medium">参赛场次</th>
-                  <th className="text-right px-6 py-3 font-medium">本站奖金</th>
+                  <th className="text-left px-6 py-3 font-medium">{t('tournament.player')}</th>
+                  <th className="text-center px-6 py-3 font-medium">{t('tournament.gpiRanking')}</th>
+                  <th className="text-center px-6 py-3 font-medium">{t('tournament.appearances')}</th>
+                  <th className="text-right px-6 py-3 font-medium">{t('tournament.localPrize')}</th>
                   <th className="px-6 py-3 w-16"></th>
                 </tr>
               </thead>
@@ -766,7 +784,7 @@ function TournamentDetail({ tournament, onBack, onSelectPlayer }: {
                           onClick={() => onSelectPlayer(p.id!)}
                           className="text-xs text-triton-gold hover:underline flex items-center gap-1"
                         >
-                          <User className="w-3 h-3" /> 详情
+                          <User className="w-3 h-3" /> {t('tournament.detail')}
                         </button>
                       )}
                     </td>
@@ -786,6 +804,7 @@ function SearchResults({ query, onSelectPlayer, onSelectTournament, onSearchVide
   onSelectTournament: (id: string) => void;
   onSearchVideos: (q: string) => void;
 }) {
+  const { t } = useTranslation();
   const q = query.toLowerCase();
   const matchedPlayers = PLAYERS.filter(p =>
     p.name.toLowerCase().includes(q) ||
@@ -813,18 +832,18 @@ function SearchResults({ query, onSelectPlayer, onSelectTournament, onSearchVide
       <div className="flex items-center gap-3 mb-6">
         <Search className="w-5 h-5 text-triton-gold" />
         <h2 className="text-xl font-bold text-triton-text">
-          搜索结果: &quot;{query}&quot;
+          {t('search.title')}: &quot;{query}&quot;
         </h2>
         <span className="text-sm text-triton-text-muted">
-          ({matchedPlayers.length} 牌手 · {matchedVideos.length} 视频 · {matchedTournaments.length} 赛事)
+          ({matchedPlayers.length} {t('search.players')} · {matchedVideos.length} {t('search.videos')} · {matchedTournaments.length} {t('search.tournaments')})
         </span>
       </div>
 
       {!hasResults && (
         <div className="text-center py-20">
           <Search className="w-12 h-12 text-triton-text-muted/30 mx-auto mb-4" />
-          <p className="text-triton-text-muted text-lg">未找到相关结果</p>
-          <p className="text-triton-text-muted/50 text-sm mt-2">请尝试其他搜索词</p>
+          <p className="text-triton-text-muted text-lg">{t('search.noResults')}</p>
+          <p className="text-triton-text-muted/50 text-sm mt-2">{t('search.tryOther')}</p>
         </div>
       )}
 
@@ -832,7 +851,7 @@ function SearchResults({ query, onSelectPlayer, onSelectTournament, onSearchVide
         <section className="mb-10">
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-4 h-4 text-triton-gold" />
-            <h3 className="text-lg font-semibold text-triton-text">牌手 ({matchedPlayers.length})</h3>
+            <h3 className="text-lg font-semibold text-triton-text">{t('search.players')} ({matchedPlayers.length})</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {matchedPlayers.map(p => (
@@ -847,13 +866,13 @@ function SearchResults({ query, onSelectPlayer, onSelectTournament, onSearchVide
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <VideoIcon className="w-4 h-4 text-triton-gold" />
-              <h3 className="text-lg font-semibold text-triton-text">相关视频 ({matchedVideos.length})</h3>
+              <h3 className="text-lg font-semibold text-triton-text">{t('search.relatedVideos')} ({matchedVideos.length})</h3>
             </div>
             <button
               onClick={() => onSearchVideos(query)}
               className="text-sm text-triton-gold hover:underline flex items-center gap-1"
             >
-              搜索更多视频 <ChevronRight className="w-3 h-3" />
+              {t('search.searchMoreVideos')} <ChevronRight className="w-3 h-3" />
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -868,7 +887,7 @@ function SearchResults({ query, onSelectPlayer, onSelectTournament, onSearchVide
         <section className="mb-10">
           <div className="flex items-center gap-2 mb-4">
             <Trophy className="w-4 h-4 text-triton-gold" />
-            <h3 className="text-lg font-semibold text-triton-text">赛事 ({matchedTournaments.length})</h3>
+            <h3 className="text-lg font-semibold text-triton-text">{t('search.tournaments')} ({matchedTournaments.length})</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {matchedTournaments.map(t => (
@@ -883,77 +902,184 @@ function SearchResults({ query, onSelectPlayer, onSelectTournament, onSearchVide
 
 // =================== Video Library ===================
 function VideoLibrary({ initialSearch }: { initialSearch?: string }) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState(initialSearch || '');
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch || '');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'views'>('newest');
   const [filterPlatform, setFilterPlatform] = useState<string>('all');
   const [filterSaved, setFilterSaved] = useState<boolean>(false);
+  const [searchScope, setSearchScope] = useState<'all' | 'player' | 'event' | 'hand' | 'subtitle' | 'tag'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newVideo, setNewVideo] = useState({
     title: '', url: '', event: '', players: '', tags: '', subtitles: ''
   });
+  const [videos, setVideos] = useState<ApiVideoItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<Record<number, string | null>>({}); // videoId -> 'saving'|'unsaving'
+  const [stats, setStats] = useState<{ total_videos: number; total_views: string } | null>(null);
+  const [addingVideo, setAddingVideo] = useState(false);
+  const pageSize = 20;
 
-  const savedVideos = useAppStore(s => s.savedVideos);
-  const addVideo = useAppStore(s => s.addVideo);
-  const removeVideo = useAppStore(s => s.removeVideo);
+  const { isAuthenticated, isPremium } = useAuthStore();
 
-  const filtered = useMemo(() => {
-    let result = [...savedVideos];
+  // 搜索防抖
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(v =>
-        v.title.toLowerCase().includes(q) ||
-        v.event?.toLowerCase().includes(q) ||
-        v.players.some(p => p.toLowerCase().includes(q)) ||
-        v.tags.some(t => t.toLowerCase().includes(q)) ||
-        v.subtitles?.toLowerCase().includes(q)
-      );
+  // 加载视频列表
+  const loadVideos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await listVideos({
+        page: filterSaved ? undefined : page,
+        page_size: pageSize,
+        search: debouncedSearch || undefined,
+        search_scope: searchScope,
+        platform: filterPlatform !== 'all' ? filterPlatform : undefined,
+        sort_by: sortBy,
+      });
+
+      if (filterSaved && isPremium) {
+        // 收藏模式：使用收藏 API
+        const savedRes = await listMySavedVideos({ page, page_size: pageSize });
+        setVideos(savedRes.saved_videos.map(sv => ({
+          id: sv.video_id,
+          title: sv.title,
+          url: sv.url,
+          thumbnail: sv.thumbnail,
+          platform: sv.platform,
+          duration: sv.duration,
+          views: null,
+          published_at: null,
+          event: sv.event,
+          players: sv.players,
+          player_ids: [],
+          subtitles: null,
+          tags: sv.tags,
+          description: null,
+          source_type: 'embed',
+          is_saved: true,
+          saved_at: sv.saved_at,
+          save_count: 0,
+        })));
+        setTotal(savedRes.total);
+      } else {
+        setVideos(res.videos);
+        setTotal(res.total);
+      }
+    } catch {
+      // API 不可用时 fallback 到本地数据
+      const localVideos = useAppStore.getState().savedVideos;
+      setVideos(localVideos.map(v => ({
+        id: typeof v.id === 'string' ? parseInt(v.id.replace(/\D/g, '')) || 0 : v.id,
+        title: v.title,
+        url: isPremium ? v.url : null,
+        thumbnail: v.thumbnail,
+        platform: v.platform,
+        duration: v.duration,
+        views: v.views,
+        published_at: v.publishedAt,
+        event: v.event ?? null,
+        players: v.players,
+        tags: v.tags,
+        subtitles: v.subtitles,
+        is_saved: v.isSaved,
+      })));
+      setTotal(localVideos.length);
     }
+    setLoading(false);
+  }, [debouncedSearch, searchScope, filterPlatform, sortBy, filterSaved, page, isPremium]);
 
-    if (filterPlatform !== 'all') {
-      result = result.filter(v => v.platform === filterPlatform);
+  // 加载统计
+  useEffect(() => {
+    getVideoStats().then(setStats).catch(() => {});
+  }, []);
+
+  // 搜索/过滤变化时重新加载
+  useEffect(() => {
+    loadVideos();
+  }, [loadVideos]);
+
+  // 切换收藏
+  const handleToggleSave = async (videoId: number, currentlySaved: boolean) => {
+    if (!isPremium) return;
+    const key = videoId;
+    setSaving(s => ({ ...s, [key]: currentlySaved ? 'unsaving' : 'saving' }));
+    try {
+      if (currentlySaved) {
+        await apiUnsaveVideo(videoId);
+      } else {
+        await apiSaveVideo(videoId);
+      }
+      // 更新本地列表中的收藏状态
+      setVideos(prev => prev.map(v =>
+        v.id === videoId ? { ...v, is_saved: !currentlySaved } : v
+      ));
+    } catch {
+      // ignore
     }
-
-    if (filterSaved) {
-      result = result.filter(v => v.isSaved);
-    }
-
-    result.sort((a, b) => {
-      if (sortBy === 'newest') return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
-      if (sortBy === 'oldest') return new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime();
-      if (sortBy === 'views') return parseFloat(b.views) - parseFloat(a.views);
-      return 0;
+    setSaving(s => {
+      const next = { ...s };
+      delete next[key];
+      return next;
     });
-
-    return result;
-  }, [savedVideos, searchQuery, sortBy, filterPlatform, filterSaved]);
-
-  const handleAddVideo = () => {
-    if (!newVideo.title || !newVideo.url) return;
-    const video: Video = {
-      id: `custom-${Date.now()}`,
-      title: newVideo.title,
-      url: newVideo.url,
-      thumbnail: newVideo.url.includes('youtube.com/watch?v=')
-        ? `https://img.youtube.com/vi/${newVideo.url.split('v=')[1]?.split('&')[0]}/maxresdefault.jpg`
-        : newVideo.url.includes('youtu.be/')
-        ? `https://img.youtube.com/vi/${newVideo.url.split('youtu.be/')[1]?.split('?')[0]}/maxresdefault.jpg`
-        : 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=320&h=180&fit=crop',
-      platform: newVideo.url.includes('youtube') ? 'youtube' : newVideo.url.includes('twitch') ? 'twitch' : 'other',
-      duration: '--:--',
-      views: '0',
-      publishedAt: new Date().toISOString().split('T')[0],
-      event: newVideo.event || undefined,
-      players: newVideo.players.split(',').map(s => s.trim()).filter(Boolean),
-      subtitles: newVideo.subtitles,
-      tags: newVideo.tags.split(',').map(s => s.trim()).filter(Boolean),
-      addedAt: new Date().toISOString().split('T')[0],
-      isSaved: true,
-    };
-    addVideo(video);
-    setShowAddModal(false);
-    setNewVideo({ title: '', url: '', event: '', players: '', tags: '', subtitles: '' });
   };
+
+  // 添加视频
+  const handleAddVideo = async () => {
+    if (!newVideo.title || !newVideo.url) return;
+    setAddingVideo(true);
+    try {
+      await apiAddVideo({
+        title: newVideo.title,
+        url: newVideo.url,
+        event: newVideo.event || undefined,
+        players: newVideo.players.split(',').map(s => s.trim()).filter(Boolean),
+        tags: newVideo.tags.split(',').map(s => s.trim()).filter(Boolean),
+        subtitles: newVideo.subtitles || undefined,
+      });
+      setShowAddModal(false);
+      setNewVideo({ title: '', url: '', event: '', players: '', tags: '', subtitles: '' });
+      loadVideos(); // 刷新列表
+    } catch {
+      // fallback: 存到本地 store
+      const store = useAppStore.getState();
+      store.addVideo({
+        id: `custom-${Date.now()}`,
+        title: newVideo.title,
+        url: newVideo.url,
+        thumbnail: newVideo.url.includes('youtube.com/watch?v=')
+          ? `https://img.youtube.com/vi/${newVideo.url.split('v=')[1]?.split('&')[0]}/maxresdefault.jpg`
+          : newVideo.url.includes('youtu.be/')
+          ? `https://img.youtube.com/vi/${newVideo.url.split('youtu.be/')[1]?.split('?')[0]}/maxresdefault.jpg`
+          : 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=320&h=180&fit=crop',
+        platform: newVideo.url.includes('youtube') ? 'youtube' : newVideo.url.includes('twitch') ? 'twitch' : 'other',
+        duration: '--:--',
+        views: '0',
+        publishedAt: new Date().toISOString().split('T')[0],
+        event: newVideo.event || undefined,
+        players: newVideo.players.split(',').map(s => s.trim()).filter(Boolean),
+        subtitles: newVideo.subtitles,
+        tags: newVideo.tags.split(',').map(s => s.trim()).filter(Boolean),
+        addedAt: new Date().toISOString().split('T')[0],
+        isSaved: true,
+      });
+      setShowAddModal(false);
+      setNewVideo({ title: '', url: '', event: '', players: '', tags: '', subtitles: '' });
+      loadVideos();
+    }
+    setAddingVideo(false);
+  };
+
+  // 加载更多
+  const hasMore = page * pageSize < total;
 
   return (
     <div className="animate-fadeIn">
@@ -961,93 +1087,151 @@ function VideoLibrary({ initialSearch }: { initialSearch?: string }) {
         <div>
           <h2 className="text-2xl font-bold text-triton-text flex items-center gap-2">
             <VideoIcon className="w-6 h-6 text-triton-gold" />
-            视频库
+            {t('video.library')}
           </h2>
           <p className="text-triton-text-muted text-sm mt-1">
-            共 {savedVideos.length} 个视频，已收藏 {savedVideos.filter(v => v.isSaved).length} 个
+            {stats ? `${t('video.totalVideos', { n: stats.total_videos })} · ${stats.total_views} ${t('video.totalViews')}` : t('video.totalVideos', { n: total })}
+            {!isPremium && <span className="text-triton-gold ml-2">{t('video.loginForMore')}</span>}
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-triton-gold-dark to-triton-gold text-triton-black font-semibold rounded-lg hover:from-triton-gold hover:to-triton-gold-light transition-all self-start"
-        >
-          <BookmarkPlus className="w-4 h-4" />
-          添加视频
-        </button>
+        {isPremium && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-triton-gold-dark to-triton-gold text-triton-black font-semibold rounded-lg hover:from-triton-gold hover:to-triton-gold-light transition-all self-start"
+          >
+            <BookmarkPlus className="w-4 h-4" />
+            {t('video.addVideo')}
+          </button>
+        )}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-triton-text-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索视频标题、赛事、牌手姓名、字幕内容..."
-            className="w-full pl-10 pr-4 py-2.5 bg-triton-card border border-triton-border rounded-lg text-sm text-triton-text placeholder-triton-text-muted/50 outline-none focus:border-triton-gold/50 transition-colors"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-              <X className="w-4 h-4 text-triton-text-muted hover:text-triton-text" />
+      <div className="flex flex-col gap-3 mb-6">
+        {/* 搜索范围 Tab */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
+          {([
+            { key: 'all', label: t('video.searchScope.all'), icon: '🔍' },
+            { key: 'player', label: t('video.searchScope.player'), icon: '👤' },
+            { key: 'event', label: t('video.searchScope.event'), icon: '🏆' },
+            { key: 'hand', label: t('video.searchScope.hand'), icon: '🃏' },
+            { key: 'subtitle', label: t('video.searchScope.subtitle'), icon: '📝' },
+            { key: 'tag', label: t('video.searchScope.tag'), icon: '🏷' },
+          ] as const).map(item => (
+            <button
+              key={item.key}
+              onClick={() => { setSearchScope(item.key); setPage(1); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                searchScope === item.key
+                  ? 'bg-triton-gold/15 text-triton-gold border border-triton-gold/30'
+                  : 'bg-triton-card border border-triton-border text-triton-text-muted hover:text-triton-text hover:border-triton-text-muted/30'
+              }`}
+            >
+              <span>{item.icon}</span>
+              {item.label}
             </button>
-          )}
+          ))}
         </div>
-        <div className="flex gap-2">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2.5 bg-triton-card border border-triton-border rounded-lg text-sm text-triton-text outline-none appearance-none cursor-pointer"
-          >
-            <option value="newest">最新添加</option>
-            <option value="oldest">最早添加</option>
-            <option value="views">播放量</option>
-          </select>
-          <select
-            value={filterPlatform}
-            onChange={(e) => setFilterPlatform(e.target.value)}
-            className="px-3 py-2.5 bg-triton-card border border-triton-border rounded-lg text-sm text-triton-text outline-none appearance-none cursor-pointer"
-          >
-            <option value="all">全部平台</option>
-            <option value="youtube">YouTube</option>
-            <option value="twitch">Twitch</option>
-            <option value="pokertube">PokerTube</option>
-          </select>
-          <button
-            onClick={() => setFilterSaved(!filterSaved)}
-            className={`px-3 py-2.5 rounded-lg text-sm border transition-all ${
-              filterSaved
-                ? 'bg-triton-gold/10 border-triton-gold/30 text-triton-gold'
-                : 'bg-triton-card border-triton-border text-triton-text-muted hover:text-triton-text'
-            }`}
-          >
-            <Star className="w-4 h-4" />
-          </button>
+
+        {/* 搜索栏 + 过滤 */}
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-triton-text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                searchScope === 'all' ? t('video.searchPlaceholder.all')
+                : searchScope === 'player' ? t('video.searchPlaceholder.player')
+                : searchScope === 'event' ? t('video.searchPlaceholder.event')
+                : searchScope === 'hand' ? t('video.searchPlaceholder.hand')
+                : searchScope === 'subtitle' ? t('video.searchPlaceholder.subtitle')
+                : t('video.searchPlaceholder.tag')
+              }
+              className="w-full pl-10 pr-4 py-2.5 bg-triton-card border border-triton-border rounded-lg text-sm text-triton-text placeholder-triton-text-muted/50 outline-none focus:border-triton-gold/50 transition-colors"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <X className="w-4 h-4 text-triton-text-muted hover:text-triton-text" />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-2.5 bg-triton-card border border-triton-border rounded-lg text-sm text-triton-text outline-none appearance-none cursor-pointer"
+            >
+              <option value="newest">{t('video.sort.newest')}</option>
+              <option value="oldest">{t('video.sort.oldest')}</option>
+              <option value="views">{t('video.sort.views')}</option>
+            </select>
+            <select
+              value={filterPlatform}
+              onChange={(e) => setFilterPlatform(e.target.value)}
+              className="px-3 py-2.5 bg-triton-card border border-triton-border rounded-lg text-sm text-triton-text outline-none appearance-none cursor-pointer"
+            >
+              <option value="all">{t('video.allPlatforms')}</option>
+              <option value="youtube">YouTube</option>
+              <option value="twitch">Twitch</option>
+              <option value="pokertube">PokerTube</option>
+            </select>
+            {isPremium && (
+              <button
+                onClick={() => { setFilterSaved(!filterSaved); setPage(1); }}
+                className={`px-3 py-2.5 rounded-lg text-sm border transition-all ${
+                  filterSaved
+                    ? 'bg-triton-gold/10 border-triton-gold/30 text-triton-gold'
+                    : 'bg-triton-card border-triton-border text-triton-text-muted hover:text-triton-text'
+                }`}
+                title={t('video.savedOnly')}
+              >
+                <Star className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Video Grid */}
-      {filtered.length === 0 ? (
+      {loading && videos.length === 0 ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-2 border-triton-gold/30 border-t-triton-gold rounded-full animate-spin" />
+        </div>
+      ) : videos.length === 0 ? (
         <div className="text-center py-20">
           <VideoIcon className="w-12 h-12 text-triton-text-muted/30 mx-auto mb-4" />
-          <p className="text-triton-text-muted">暂无视频</p>
-          <p className="text-triton-text-muted/50 text-sm mt-2">点击上方&quot;添加视频&quot;按钮添加比赛视频</p>
+          <p className="text-triton-text-muted">{t('video.noVideos')}</p>
+          <p className="text-triton-text-muted/50 text-sm mt-2">
+            {debouncedSearch ? t('video.noMatch') : t('video.noVideosHint')}
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map(v => (
-            <VideoCard
-              key={v.id}
-              video={v}
-              isLibrary={true}
-              onSave={(vid) => {
-                const exists = savedVideos.find(sv => sv.id === vid.id);
-                if (!exists) addVideo(vid);
-              }}
-              onRemove={removeVideo}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {videos.map(v => (
+              <VideoCardApi
+                key={v.id}
+                video={v}
+                isPremium={isPremium}
+                savingState={saving[v.id] || null}
+                onSave={isPremium ? () => handleToggleSave(v.id, !!v.is_saved) : undefined}
+              />
+            ))}
+          </div>
+
+          {/* Load More */}
+          {hasMore && (
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={() => setPage(p => p + 1)}
+                className="px-6 py-2.5 border border-triton-border text-triton-text-muted rounded-lg hover:border-triton-gold/30 hover:text-triton-gold transition-all text-sm"
+              >
+                {t('video.loadMore')} ({page * pageSize} / {total})
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Add Video Modal */}
@@ -1055,14 +1239,14 @@ function VideoLibrary({ initialSearch }: { initialSearch?: string }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
           <div className="bg-triton-dark border border-triton-border rounded-2xl w-full max-w-lg p-6 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-triton-text">添加视频到视频库</h3>
+              <h3 className="text-xl font-bold text-triton-text">{t('video.addToLibrary')}</h3>
               <button onClick={() => setShowAddModal(false)} className="p-1 hover:bg-white/5 rounded">
                 <X className="w-5 h-5 text-triton-text-muted" />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-triton-text-muted mb-1">视频标题 *</label>
+                <label className="block text-sm text-triton-text-muted mb-1">{t('video.formTitle')}</label>
                 <input
                   type="text"
                   value={newVideo.title}
@@ -1072,7 +1256,7 @@ function VideoLibrary({ initialSearch }: { initialSearch?: string }) {
                 />
               </div>
               <div>
-                <label className="block text-sm text-triton-text-muted mb-1">视频链接 *</label>
+                <label className="block text-sm text-triton-text-muted mb-1">{t('video.formUrl')}</label>
                 <input
                   type="url"
                   value={newVideo.url}
@@ -1083,7 +1267,7 @@ function VideoLibrary({ initialSearch }: { initialSearch?: string }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-triton-text-muted mb-1">赛事名称</label>
+                  <label className="block text-sm text-triton-text-muted mb-1">{t('video.formEvent')}</label>
                   <input
                     type="text"
                     value={newVideo.event}
@@ -1114,21 +1298,21 @@ function VideoLibrary({ initialSearch }: { initialSearch?: string }) {
                 />
               </div>
               <div>
-                <label className="block text-sm text-triton-text-muted mb-1">字幕/关键词（用于搜索）</label>
+                <label className="block text-sm text-triton-text-muted mb-1">字幕/手牌内容（用于搜索）</label>
                 <textarea
                   value={newVideo.subtitles}
                   onChange={(e) => setNewVideo({ ...newVideo, subtitles: e.target.value })}
-                  placeholder="final table, all-in, river, bluff, amazing hand..."
+                  placeholder="输入字幕内容、手牌分析关键词，如：&#10;final table, all-in, river, bluff&#10;AA vs KK preflop all-in&#10;amazing bluff with 72o..."
                   rows={3}
                   className="w-full px-4 py-2.5 bg-triton-card border border-triton-border rounded-lg text-sm text-triton-text placeholder-triton-text-muted/50 outline-none focus:border-triton-gold/50 resize-none"
                 />
               </div>
               <button
                 onClick={handleAddVideo}
-                disabled={!newVideo.title || !newVideo.url}
+                disabled={!newVideo.title || !newVideo.url || addingVideo}
                 className="w-full py-3 bg-gradient-to-r from-triton-gold-dark to-triton-gold text-triton-black font-bold rounded-lg hover:from-triton-gold hover:to-triton-gold-light transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                添加到视频库
+                {addingVideo ? '提交中...' : '添加到视频库'}
               </button>
             </div>
           </div>
@@ -1138,8 +1322,149 @@ function VideoLibrary({ initialSearch }: { initialSearch?: string }) {
   );
 }
 
+// =================== Video Card (API 版本) ===================
+function VideoCardApi({ video, isPremium, savingState, onSave }: {
+  video: ApiVideoItem;
+  isPremium: boolean;
+  savingState: string | null;
+  onSave?: () => void;
+}) {
+  const { t } = useTranslation();
+  const [isPlaying, setIsPlaying] = useState(false);
+  const platformColors: Record<string, string> = {
+    youtube: 'bg-red-600',
+    twitch: 'bg-purple-600',
+    pokertube: 'bg-blue-600',
+    other: 'bg-gray-600',
+    cos: 'bg-teal-600',
+  };
+
+  const youtubeId = video.url ? (
+    video.url.includes('youtube.com/watch?v=')
+      ? video.url.split('v=')[1]?.split('&')[0]
+      : video.url.includes('youtu.be/')
+      ? video.url.split('youtu.be/')[1]?.split('?')[0]
+      : video.url.includes('youtube.com/embed/')
+      ? video.url.split('embed/')[1]?.split('?')[0]
+      : null
+  ) : null;
+
+  const canPlay = isPremium && video.url;
+
+  return (
+    <div className="group bg-triton-card border border-triton-border rounded-xl overflow-hidden hover:border-triton-gold/30 transition-all duration-300 animate-fadeIn">
+      <div className="relative aspect-video bg-triton-black overflow-hidden">
+        {isPlaying && youtubeId && canPlay ? (
+          <iframe
+            src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title={video.title || ''}
+          />
+        ) : (
+          <>
+            <img
+              src={video.thumbnail || 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=320&h=180&fit=crop'}
+              alt={video.title || ''}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            {/* Play button or lock */}
+            <div className="absolute inset-0 flex items-center justify-center z-10">
+              {canPlay ? (
+                <button
+                  onClick={() => setIsPlaying(true)}
+                  className="w-14 h-14 bg-triton-gold/90 rounded-full flex items-center justify-center hover:bg-triton-gold hover:scale-110 transition-all shadow-lg shadow-triton-gold/20"
+                >
+                  <Play className="w-6 h-6 text-triton-black ml-1" fill="currentColor" />
+                </button>
+              ) : (
+                <div className="w-14 h-14 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm">
+                  <Crown className="w-6 h-6 text-triton-gold/70" />
+                </div>
+              )}
+            </div>
+            {video.platform && (
+              <div className="absolute top-3 left-3 flex gap-2 z-20">
+                <span className={`px-2 py-0.5 ${(platformColors[video.platform] || platformColors.other)} text-white text-xs font-bold rounded`}>
+                  {video.platform.toUpperCase()}
+                </span>
+              </div>
+            )}
+            {video.duration && (
+              <div className="absolute bottom-3 right-3 px-2 py-0.5 bg-black/80 text-white text-xs rounded">
+                {video.duration}
+              </div>
+            )}
+            {video.views && (
+              <div className="absolute bottom-3 left-3 flex items-center gap-1 text-white/70 text-xs">
+                <Play className="w-3 h-3" />
+                <span>{video.views} views</span>
+              </div>
+            )}
+            {video.is_saved && (
+              <div className="absolute top-3 right-3 p-1 bg-triton-gold rounded-full z-20">
+                <Star className="w-3 h-3 text-triton-black fill-triton-black" />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      <div className="p-4">
+        <h3 className="text-sm font-semibold text-triton-text line-clamp-2 group-hover:text-triton-gold transition-colors">
+          {video.title}
+        </h3>
+        {(video.players && video.players.length > 0) && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {video.players.slice(0, 3).map((p) => (
+              <span key={p} className="px-2 py-0.5 text-xs bg-triton-gold/10 text-triton-gold/70 rounded">
+                {p}
+              </span>
+            ))}
+            {(video.tags || []).slice(0, 2).map((t) => (
+              <span key={t} className="px-2 py-0.5 text-xs bg-triton-border text-triton-text-muted rounded">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-triton-border/50">
+          <span className="text-xs text-triton-text-muted">
+            {video.event || ''}{video.event && video.published_at ? ' · ' : ''}{video.published_at || ''}
+          </span>
+          <div className="flex gap-1">
+            {onSave && (
+              <button
+                onClick={onSave}
+                disabled={!!savingState}
+                className="p-1.5 hover:bg-triton-gold/10 rounded transition-colors disabled:opacity-50"
+                title={video.is_saved ? '取消收藏' : '收藏视频'}
+              >
+                <Star className={`w-4 h-4 ${video.is_saved ? 'text-triton-gold fill-triton-gold' : 'text-triton-text-muted hover:text-triton-gold'}`} />
+              </button>
+            )}
+            {canPlay && video.url && (
+              <a
+                href={video.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 hover:bg-triton-gold/10 rounded transition-colors"
+                title="打开原链接"
+              >
+                <ExternalLink className="w-4 h-4 text-triton-text-muted hover:text-triton-gold" />
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // =================== Player Library ===================
 function PlayerLibrary({ initialSearch, onSelectPlayer }: { initialSearch?: string; onSelectPlayer: (id: string) => void }) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState(initialSearch || '');
   const [sortBy, setSortBy] = useState<'name' | 'earnings' | 'titles' | 'country'>('earnings');
   const [filterCountry, setFilterCountry] = useState<string>('all');
@@ -1197,7 +1522,9 @@ function PlayerLibrary({ initialSearch, onSelectPlayer }: { initialSearch?: stri
         const eb = parseFloat(b.totalEarnings.replace(/[^0-9.]/g, ''));
         return eb - ea;
       }
-      if (sortBy === 'titles') return b.titles - a.titles;
+      if (sortBy === 'titles') {
+        return (b.titles || 0) - (a.titles || 0);
+      }
       if (sortBy === 'country') return a.country.localeCompare(b.country);
       return 0;
     });
@@ -1318,6 +1645,7 @@ function PlayerLibraryCard({ player, isFavorited, onToggleFavorite, onClick }: {
   onToggleFavorite: () => void;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className="group bg-triton-card border border-triton-border rounded-xl overflow-hidden hover:border-triton-gold/40 transition-all duration-300 animate-fadeIn relative"
@@ -1332,22 +1660,24 @@ function PlayerLibraryCard({ player, isFavorited, onToggleFavorite, onClick }: {
 
       <div onClick={onClick} className="cursor-pointer">
         {/* Card top with image */}
-        <div className="relative h-32 bg-gradient-to-br from-triton-gold/10 to-triton-dark overflow-hidden">
+        <div className="relative h-32 bg-gradient-to-br from-triton-gold/10 to-triton-dark">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(200,168,78,0.15),transparent)]" />
           {player.titles >= 5 && (
             <div className="absolute top-3 left-3 px-2 py-0.5 bg-triton-gold text-triton-black text-xs font-bold rounded-full flex items-center gap-1">
               <Trophy className="w-3 h-3" /> {player.titles}冠
             </div>
           )}
+        </div>
+        <div className="relative -mt-10 z-10">
           <img
             src={player.image}
             alt={player.name}
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-20 h-20 rounded-full border-4 border-triton-card object-cover group-hover:scale-110 transition-transform duration-300"
+            className="mx-auto w-20 h-20 rounded-full border-4 border-triton-card object-cover shadow-lg group-hover:scale-110 transition-transform duration-300"
           />
         </div>
 
         {/* Card body */}
-        <div className="pt-12 pb-5 px-5 text-center">
+        <div className="pt-2 pb-5 px-5 text-center">
           <h3 className="text-lg font-bold text-triton-text group-hover:text-triton-gold transition-colors">{player.name}</h3>
           <p className="text-triton-text-muted text-sm mt-1">{player.flag} {player.country}</p>
           {player.nickname && player.nickname !== '-' && (
@@ -1392,16 +1722,18 @@ function PlayerLibraryCard({ player, isFavorited, onToggleFavorite, onClick }: {
 }
 
 // =================== Navigation ===================
-function Navbar({ currentView, onNavigate }: {
+function Navbar({ currentView, onNavigate, isPremium }: {
   currentView: string;
   onNavigate: (view: 'home' | 'player' | 'videos' | 'tournaments' | 'players' | 'tournamentDetail') => void;
+  isPremium: boolean;
 }) {
+  const { t, locale, setLocale } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const items = [
     { id: 'home', label: '首页', icon: <PokerCardIcon className="w-4 h-4" /> },
     { id: 'tournaments', label: '赛事', icon: <Trophy className="w-4 h-4" /> },
-    { id: 'videos', label: '视频库', icon: <VideoIcon className="w-4 h-4" /> },
     { id: 'players', label: '选手库', icon: <Users className="w-4 h-4" /> },
+    { id: 'videos', label: '视频库', icon: <VideoIcon className="w-4 h-4" />, premium: true },
   ] as const;
 
   return (
@@ -1426,6 +1758,9 @@ function Navbar({ currentView, onNavigate }: {
                 >
                   {item.icon}
                   {item.label}
+                  {'premium' in item && item.premium && !isPremium && (
+                    <Crown className="w-3.5 h-3.5 text-triton-gold/70" />
+                  )}
                 </button>
               ))}
             </div>
@@ -1450,6 +1785,9 @@ function Navbar({ currentView, onNavigate }: {
               >
                 {item.icon}
                 {item.label}
+                {'premium' in item && item.premium && !isPremium && (
+                  <Crown className="w-3.5 h-3.5 text-triton-gold/70" />
+                )}
               </button>
             ))}
           </div>
@@ -1459,8 +1797,52 @@ function Navbar({ currentView, onNavigate }: {
   );
 }
 
+// =================== Video Paywall ===================
+function VideoPaywall({ onSubscribe, onBack }: { onSubscribe: () => void; onBack: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="animate-fadeIn flex flex-col items-center justify-center py-20 text-center">
+      <div className="w-20 h-20 rounded-2xl bg-triton-gold/10 flex items-center justify-center mb-6">
+        <Crown className="w-10 h-10 text-triton-gold" />
+      </div>
+      <h2 className="text-2xl font-bold text-triton-text mb-3">视频库仅限订阅用户</h2>
+      <p className="text-triton-text-muted max-w-md mb-8">
+        视频库收录了全球顶级扑克赛事的精彩对决，支持按玩家、赛事、手牌、字幕内容等多维度搜索。订阅后即可解锁完整视频库。
+      </p>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <button
+          onClick={onSubscribe}
+          className="px-8 py-3 bg-gradient-to-r from-triton-gold-dark to-triton-gold text-triton-black font-bold rounded-lg hover:from-triton-gold hover:to-triton-gold-light transition-all"
+        >
+          立即订阅
+        </button>
+        <button
+          onClick={onBack}
+          className="px-8 py-3 border border-triton-border text-triton-text-muted rounded-lg hover:border-triton-text-muted/30 hover:text-triton-text transition-all"
+        >
+          返回
+        </button>
+      </div>
+      <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-2xl">
+        {[
+          { icon: '🎬', title: '精彩赛事回放', desc: 'WSOP、Triton、EPT 等顶级赛事' },
+          { icon: '🃏', title: '手牌搜索', desc: '按手牌、玩家、关键词精准定位' },
+          { icon: '📝', title: '字幕内容搜索', desc: '搜索字幕内容快速找到目标片段' },
+        ].map(f => (
+          <div key={f.title} className="flex flex-col items-center gap-2 p-4">
+            <span className="text-2xl">{f.icon}</span>
+            <span className="text-sm font-semibold text-triton-text">{f.title}</span>
+            <span className="text-xs text-triton-text-muted/70">{f.desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // =================== Footer ===================
 function Footer() {
+  const { t } = useTranslation();
   return (
     <footer className="border-t border-triton-border bg-triton-black mt-16">
       <div className="max-w-7xl mx-auto px-6 py-8">
@@ -1485,12 +1867,16 @@ function Footer() {
 
 // =================== Main App ===================
 export default function App() {
+  const { t } = useTranslation();
   const [currentView, setCurrentView] = useState<'home' | 'player' | 'videos' | 'tournaments' | 'players' | 'tournamentDetail'>('home');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [videoSearchQuery, setVideoSearchQuery] = useState('');
   const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const { isPremium } = useAuthStore();
 
   const selectedPlayer = useMemo(() =>
     PLAYERS.find(p => p.id === selectedPlayerId),
@@ -1533,6 +1919,7 @@ export default function App() {
       <Navbar
         currentView={currentView}
         onNavigate={handleNavigate}
+        isPremium={isPremium}
       />
 
       <main className="max-w-7xl mx-auto px-4 md:px-6">
@@ -1823,7 +2210,14 @@ export default function App() {
 
         {currentView === 'videos' && (
           <div className="py-8">
-            <VideoLibrary initialSearch={videoSearchQuery || undefined} />
+            {isPremium ? (
+              <VideoLibrary initialSearch={videoSearchQuery || undefined} />
+            ) : (
+              <VideoPaywall
+                onSubscribe={() => setShowPaywall(true)}
+                onBack={() => setCurrentView('home')}
+              />
+            )}
           </div>
         )}
 
@@ -1854,6 +2248,14 @@ export default function App() {
       </main>
 
       <Footer />
+
+      {showPaywall && (
+        <PaywallModal
+          feature="视频库"
+          onClose={() => setShowPaywall(false)}
+          onLogin={() => { setShowPaywall(false); setCurrentView('home'); }}
+        />
+      )}
     </div>
   );
 }

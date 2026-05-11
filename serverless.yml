@@ -1,0 +1,27 @@
+# 腾讯云 SCF 部署配置（使用 Serverless Framework）
+# 安装: npm install -g serverless
+# 部署: serverless deploy
+# 需要先配置: serverless config credentials --provider tencent --key xxx --secret xxx
+
+service: poker-player-db
+
+provider:
+  name: tencent
+  runtime: Python 3.11
+  region: ap-guangzhou
+  memorySize: 512
+  timeout: 30
+  environment:
+    DEBUG: false
+
+# 使用 API 网关触发器
+events:
+  - apigw:
+      name: poker-api
+      parameters:
+        protocols:
+          - https
+        environment: release
+        endpoints:
+          - path: /
+            method: ANY
