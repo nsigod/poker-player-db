@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: './',
+  base: '/poker-player-db/',  // GitHub Pages 需要仓库名作为 base
   server: {
     proxy: {
       '/api': {
